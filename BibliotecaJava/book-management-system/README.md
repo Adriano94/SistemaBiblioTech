@@ -21,12 +21,12 @@ Este projeto é um sistema simples de gerenciamento de livros desenvolvido em Ja
 1. **Compile os arquivos Java**  
    No terminal, navegue até a pasta `src` e execute:
    ```
-   javac *.java
+   javac -cp ".;../../../lib/mysql-connector-java-8.0.28.jar" *.java
    ```
 
 2. **Execute o programa principal**  
    ```
-   java Main
+   java -cp ".;../../../lib/mysql-connector-java-8.0.28.jar" Main
    ```
 
 3. **Utilize o menu exibido no console**  
