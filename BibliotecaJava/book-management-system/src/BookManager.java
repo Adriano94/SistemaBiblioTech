@@ -1,54 +1,313 @@
-import java.util.List;
-import java.util.ArrayList;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import javax.swing.JTextArea;
 
-// Classe responsável por gerenciar a lista de livros
+/**
+ * Classe responsável por gerenciar as operações de CRUD para a entidade Book
+ * Inclui funcionalidades para controle de quantidade e reservas
+ */
 public class BookManager {
-    private List<Book> books; // Lista de livros cadastrados
 
-    // Construtor inicializa a lista de livros
+    /**
+     * Construtor da classe BookManager
+     * Garante que a tabela books exista no banco ao inicializar
+     */
     public BookManager() {
-        books = new ArrayList<>();
+        // Cria a tabela se não existir
+        DatabaseConnection.createTableIfNotExists();
     }
 
-    // Adiciona um novo livro à lista
-    public void addBook(Book book) {
-        books.add(book);
-        System.out.println("Livro cadastrado com sucesso!");
-    }
-
-    // Atualiza as informações de um livro pelo ISBN
-    public boolean updateBook(String isbn, Book updatedBook) {
-        for (int i = 0; i < books.size(); i++) {
-            if (books.get(i).getIsbn().equals(isbn)) {
-                books.set(i, updatedBook);
-                System.out.println("Livro atualizado com sucesso!");
-                return true;
+    /**
+ * Adiciona um novo livro ao banco de dados ou atualiza a quantidade se o ISBN já existir
+ * @param book Objeto Book contendo os dados do livro
+ */
+public void addBook(Book book) {
+    // Primeiro verifica se o livro já existe pelo ISBN
+    String checkSql = "SELECT id, quantidade_total, quantidade_disponivel, reservados FROM books WHERE isbn = ?";
+    
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+        
+        checkStmt.setString(1, book.getIsbn());
+        ResultSet rs = checkStmt.executeQuery();
+        
+        if (rs.next()) {
+            // Livro já existe, atualiza a quantidade
+            int quantidadeTotalAtual = rs.getInt("quantidade_total");
+            int quantidadeDisponivelAtual = rs.getInt("quantidade_disponivel");
+            int reservadosAtual = rs.getInt("reservados");
+            
+            int novaQuantidadeTotal = quantidadeTotalAtual + book.getQuantidadeTotal();
+            int novaQuantidadeDisponivel = quantidadeDisponivelAtual + book.getQuantidadeDisponivel();
+            int novosReservados = reservadosAtual + book.getReservados();
+            boolean todosReservados = (novaQuantidadeDisponivel == 0);
+            
+            String updateSql = "UPDATE books SET quantidade_total = ?, quantidade_disponivel = ?, reservados = ?, todos_reservados = ? WHERE isbn = ?";
+            
+            try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                updateStmt.setInt(1, novaQuantidadeTotal);
+                updateStmt.setInt(2, novaQuantidadeDisponivel);
+                updateStmt.setInt(3, novosReservados);
+                updateStmt.setBoolean(4, todosReservados);
+                updateStmt.setString(5, book.getIsbn());
+                
+                updateStmt.executeUpdate();
+                System.out.println("✅ Quantidade do livro atualizada com sucesso!");
+            }
+        } else {
+            // Livro não existe, insere um novo
+            String insertSql = "INSERT INTO books (title, author, isbn, year, quantidade_total, quantidade_disponivel, reservados, todos_reservados) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            
+            try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
+                insertStmt.setString(1, book.getTitle());
+                insertStmt.setString(2, book.getAuthor());
+                insertStmt.setString(3, book.getIsbn());
+                insertStmt.setString(4, book.getYear());
+                insertStmt.setInt(5, book.getQuantidadeTotal());
+                insertStmt.setInt(6, book.getQuantidadeDisponivel());
+                insertStmt.setInt(7, book.getReservados());
+                insertStmt.setBoolean(8, book.isTodosReservados());
+                
+                insertStmt.executeUpdate();
+                System.out.println("✅ Livro adicionado com sucesso no Aiven MySQL!");
             }
         }
-        System.out.println("Livro não encontrado!");
-        return false;
+        
+    } catch (SQLException e) {
+        System.err.println("❌ Erro ao adicionar/atualizar livro: " + e.getMessage());
+    }
+}
+
+/**
+ * Obtém informações completas de um livro pelo ISBN
+ * @param isbn ISBN do livro
+ * @return Objeto Book com todas as informações ou null se não encontrado
+ */
+public Book getBookByIsbn(String isbn) {
+    String sql = "SELECT title, author, isbn, year, quantidade_total, quantidade_disponivel, reservados, todos_reservados FROM books WHERE isbn = ?";
+    
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+        
+        stmt.setString(1, isbn);
+        ResultSet rs = stmt.executeQuery();
+        
+        if (rs.next()) {
+            return new Book(
+                rs.getString("title"),
+                rs.getString("author"),
+                rs.getString("isbn"),
+                rs.getString("year"),
+                rs.getInt("quantidade_total"),
+                rs.getInt("quantidade_disponivel"),
+                rs.getInt("reservados"),
+                rs.getBoolean("todos_reservados")
+            );
+        }
+        
+    } catch (SQLException e) {
+        System.err.println("❌ Erro ao buscar livro por ISBN: " + e.getMessage());
+    }
+    
+    return null;
+}
+
+    /**
+     * Lista todos os livros do banco em uma área de texto gráfica
+     * @param outputArea Área de texto onde os resultados serão exibidos
+     */
+    public void listBooksGUI(JTextArea outputArea) {
+        // Comando SQL para selecionar todos os livros
+        String sql = "SELECT id, title, author, isbn, year, quantidade_total, quantidade_disponivel, reservados, todos_reservados FROM books";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            outputArea.append("📚 Lista de livros no Aiven MySQL:\n\n");
+            // Itera sobre os resultados e os adiciona à área de texto
+            while (rs.next()) {
+                outputArea.append("ID: " + rs.getLong("id") +
+                        " | Título: " + rs.getString("title") +
+                        " | Autor: " + rs.getString("author") +
+                        " | ISBN: " + rs.getString("isbn") +
+                        " | Ano: " + rs.getString("year") +
+                        " | Total: " + rs.getInt("quantidade_total") +
+                        " | Disponível: " + rs.getInt("quantidade_disponivel") +
+                        " | Reservados: " + rs.getInt("reservados") +
+                        " | Todos Reservados: " + (rs.getBoolean("todos_reservados") ? "Sim" : "Não") + "\n");
+            }
+
+        } catch (SQLException e) {
+            outputArea.append("❌ Erro ao listar livros: " + e.getMessage() + "\n");
+        }
     }
 
-    // Remove um livro da lista pelo ISBN
-    public boolean deleteBook(String isbn) {
-        for (Book book : books) {
-            if (book.getIsbn().equals(isbn)) {
-                books.remove(book);
-                System.out.println("Livro removido com sucesso!");
-                return true;
-            }
+    /**
+     * Pesquisa livros no banco de dados com base em diferentes critérios
+     * @param searchType Tipo de pesquisa (1=Título, 2=Autor, 3=ISBN)
+     * @param searchTerm Termo a ser pesquisado
+     * @param outputArea Área de texto onde os resultados serão exibidos
+     */
+    public void searchBooks(int searchType, String searchTerm, JTextArea outputArea) {
+        String sql = "";
+        // Define o comando SQL com base no tipo de pesquisa
+        switch (searchType) {
+            case 1: // Pesquisa por título
+                sql = "SELECT id, title, author, isbn, year, quantidade_total, quantidade_disponivel, reservados, todos_reservados FROM books WHERE title LIKE ?";
+                break;
+            case 2: // Pesquisa por autor
+                sql = "SELECT id, title, author, isbn, year, quantidade_total, quantidade_disponivel, reservados, todos_reservados FROM books WHERE author LIKE ?";
+                break;
+            case 3: // Pesquisa por ISBN
+                sql = "SELECT id, title, author, isbn, year, quantidade_total, quantidade_disponivel, reservados, todos_reservados FROM books WHERE isbn LIKE ?";
+                break;
+            default:
+                outputArea.append("❌ Tipo de pesquisa inválido!\n");
+                return;
         }
-        System.out.println("Livro não encontrado!");
-        return false;
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            // Define o parâmetro da pesquisa (com % para busca parcial)
+            stmt.setString(1, "%" + searchTerm + "%");
+            ResultSet rs = stmt.executeQuery();
+
+            boolean found = false;
+            // Itera sobre os resultados
+            while (rs.next()) {
+                found = true;
+                outputArea.append("ID: " + rs.getLong("id") +
+                        " | Título: " + rs.getString("title") +
+                        " | Autor: " + rs.getString("author") +
+                        " | ISBN: " + rs.getString("isbn") +
+                        " | Ano: " + rs.getString("year") +
+                        " | Total: " + rs.getInt("quantidade_total") +
+                        " | Disponível: " + rs.getInt("quantidade_disponivel") +
+                        " | Reservados: " + rs.getInt("reservados") +
+                        " | Todos Reservados: " + (rs.getBoolean("todos_reservados") ? "Sim" : "Não") + "\n");
+            }
+            
+            // Mensagem se nenhum livro for encontrado
+            if (!found) {
+                outputArea.append("❌ Nenhum livro encontrado com o termo: " + searchTerm + "\n");
+            }
+
+        } catch (SQLException e) {
+            outputArea.append("❌ Erro ao pesquisar livros: " + e.getMessage() + "\n");
+        }
     }
 
-    // Busca e retorna um livro pelo ISBN
-    public Book getBook(String isbn) {
-        for (Book book : books) {
-            if (book.getIsbn().equals(isbn)) {
-                return book;
+    /**
+     * Exclui um livro do banco de dados com base no ISBN
+     * @param isbn ISBN do livro a ser excluído
+     */
+    public void deleteBookByIsbn(String isbn) {
+        String sql = "DELETE FROM books WHERE isbn = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, isbn);
+
+            int rows = stmt.executeUpdate();
+            if (rows > 0) {
+                System.out.println("🗑️ Livro removido com sucesso!");
+            } else {
+                System.out.println("⚠️ Nenhum livro encontrado com esse ISBN.");
             }
+
+        } catch (SQLException e) {
+            System.err.println("❌ Erro ao deletar livro por ISBN: " + e.getMessage());
         }
-        return null;
+    }
+
+    /**
+     * Exclui um livro do banco de dados com base no ID
+     * @param id ID do livro a ser excluído
+     */
+    public void deleteBookById(long id) {
+        String sql = "DELETE FROM books WHERE id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, id);
+
+            int rows = stmt.executeUpdate();
+            if (rows > 0) {
+                System.out.println("🗑️ Livro removido com sucesso!");
+            } else {
+                System.out.println("⚠️ Nenhum livro encontrado com esse ID.");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("❌ Erro ao deletar livro por ID: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Atualiza as informações de estoque de um livro
+     * @param isbn ISBN do livro a ser atualizado
+     * @param quantidadeTotal Nova quantidade total
+     * @param quantidadeDisponivel Nova quantidade disponível
+     * @param reservados Novo número de reservas
+     */
+    public void atualizarEstoque(String isbn, int quantidadeTotal, int quantidadeDisponivel, int reservados) {
+        // Calcula se todos os livros estão reservados
+        boolean todosReservados = (quantidadeDisponivel == 0);
+        
+        String sql = "UPDATE books SET quantidade_total = ?, quantidade_disponivel = ?, reservados = ?, todos_reservados = ? WHERE isbn = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, quantidadeTotal);
+            stmt.setInt(2, quantidadeDisponivel);
+            stmt.setInt(3, reservados);
+            stmt.setBoolean(4, todosReservados);
+            stmt.setString(5, isbn);
+
+            int rows = stmt.executeUpdate();
+            if (rows > 0) {
+                System.out.println("✅ Estoque do livro atualizado com sucesso!");
+            } else {
+                System.out.println("⚠️ Nenhum livro encontrado com esse ISBN.");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("❌ Erro ao atualizar estoque: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Obtém as informações de estoque de um livro
+     * @param isbn ISBN do livro
+     * @return Array com [quantidadeTotal, quantidadeDisponivel, reservados, todosReservados]
+     */
+    public int[] obterEstoque(String isbn) {
+        String sql = "SELECT quantidade_total, quantidade_disponivel, reservados FROM books WHERE isbn = ?";
+        int[] estoque = new int[3]; // [total, disponivel, reservados]
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, isbn);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                estoque[0] = rs.getInt("quantidade_total");
+                estoque[1] = rs.getInt("quantidade_disponivel");
+                estoque[2] = rs.getInt("reservados");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("❌ Erro ao obter estoque: " + e.getMessage());
+        }
+
+        return estoque;
     }
 }
