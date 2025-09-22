@@ -1,3 +1,5 @@
+package User;
+
 public class Usuario {
     private int id;
     private String nome;
@@ -9,4 +11,9 @@ public class Usuario {
 
     public int getId() { return id; }
     public String getNome() { return nome; }
+
+    @Override
+    public String toString() {
+        return "Usuario{id=" + id + ", nome='" + nome + "'}";
+    }
 }
