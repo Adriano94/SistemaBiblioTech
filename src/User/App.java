@@ -1,69 +1,71 @@
+package User;
+
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Scanner;
 
 public class App {
     public static void main(String[] args) {
+        // Testar conexão
+        System.out.println("=== SISTEMA DE RESERVAS DE LIVROS ===");
+        Database.testConnection();
+        
         BibliotecaService service = new BibliotecaService();
-        Scanner sc = new Scanner(System.in);
+        Scanner scanner = new Scanner(System.in);
 
         while (true) {
-            System.out.println("\n--- Sistema Biblioteca ---");
-            System.out.println("1 - Consultar livros");
+            System.out.println("\n=== MENU PRINCIPAL ===");
+            System.out.println("1 - Consultar livros disponíveis");
             System.out.println("2 - Reservar livro");
             System.out.println("3 - Devolver livro");
             System.out.println("4 - Consultar histórico");
             System.out.println("0 - Sair");
-            System.out.print("Escolha: ");
-            int opc = sc.nextInt();
-            sc.nextLine(); // limpar buffer
-
+            System.out.print("Escolha uma opção: ");
+            
             try {
-                switch (opc) {
+                int opcao = scanner.nextInt();
+                scanner.nextLine(); // Limpar buffer
+
+                switch (opcao) {
                     case 1:
-                        List<Livro> livros = service.consultarLivros();
-                        if (livros.isEmpty()) {
-                            System.out.println("Nenhum livro encontrado.");
-                        }
+                        service.consultarLivros();
                         break;
-
+                        
                     case 2:
-                        System.out.print("Informe ID do livro: ");
-                        int id1 = sc.nextInt();
-                        sc.nextLine();
+                        System.out.print("ID do livro: ");
+                        int idReserva = scanner.nextInt();
+                        scanner.nextLine();
                         System.out.print("Seu nome: ");
-                        String nome1 = sc.nextLine();
-                        service.reservarLivro(id1, nome1);
-                        System.out.println("Livro reservado com sucesso!");
+                        String nomeReserva = scanner.nextLine();
+                        service.reservarLivro(idReserva, nomeReserva);
                         break;
-
+                        
                     case 3:
-                        System.out.print("Informe ID do livro: ");
-                        int id2 = sc.nextInt();
-                        sc.nextLine();
+                        System.out.print("ID do livro: ");
+                        int idDevolucao = scanner.nextInt();
+                        scanner.nextLine();
                         System.out.print("Seu nome: ");
-                        String nome2 = sc.nextLine();
-                        service.devolverLivro(id2, nome2);
-                        System.out.println("Livro devolvido com sucesso!");
+                        String nomeDevolucao = scanner.nextLine();
+                        service.devolverLivro(idDevolucao, nomeDevolucao);
                         break;
-
+                        
                     case 4:
-                        List<String> historico = service.consultarHistorico();
-                        if (historico.isEmpty()) {
-                            System.out.println("Nenhum registro no histórico.");
-                        }
+                        service.consultarHistorico();
                         break;
-
+                        
                     case 0:
                         System.out.println("Saindo...");
-                        sc.close();
+                        scanner.close();
                         return;
-
+                        
                     default:
-                        System.out.println("Opção inválida");
+                        System.out.println("Opção inválida!");
                 }
             } catch (SQLException e) {
-                System.out.println("Erro de banco de dados: " + e.getMessage());
+                System.out.println("❌ Erro no banco de dados: " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("❌ Erro: " + e.getMessage());
+                scanner.nextLine(); // Limpar buffer em caso de erro
             }
         }
     }
