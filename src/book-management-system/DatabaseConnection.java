@@ -1,3 +1,5 @@
+package book.management.system;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -5,6 +7,7 @@ import java.sql.Statement;
 
 /**
  * Classe responsável por gerenciar a conexão com o banco de dados MySQL no Aiven
+ * Esta classe é usada pelo sistema de gerenciamento de livros
  */
 public class DatabaseConnection {
     // Configurações de conexão com o banco de dados MySQL no Aiven
@@ -16,7 +19,22 @@ public class DatabaseConnection {
     
     // URL de conexão JDBC com parâmetros SSL
     private static final String URL = "jdbc:mysql://" + HOST + ":" + PORT + "/" + DATABASE + 
-                                    "?sslMode=REQUIRED&useSSL=true";
+                                    "?sslMode=REQUIRED&useSSL=true&useUnicode=true&characterEncoding=UTF-8";
+
+    /**
+     * Bloco estático para carregar o driver MySQL automaticamente
+     * Executado quando a classe é carregada pela JVM
+     */
+    static {
+        try {
+            // Carrega o driver JDBC do MySQL
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            System.out.println("✅ Driver MySQL carregado com sucesso!");
+        } catch (ClassNotFoundException e) {
+            System.err.println("❌ Driver MySQL não encontrado!");
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Estabelece uma conexão com o banco de dados MySQL
@@ -24,19 +42,12 @@ public class DatabaseConnection {
      * @throws SQLException Se ocorrer um erro na conexão
      */
     public static Connection getConnection() throws SQLException {
-        try {
-            // Carrega o driver JDBC do MySQL
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("Driver MySQL não encontrado. Verifique se o JAR do MySQL está na pasta lib.", e);
-        }
-        // Retorna a conexão com o banco usando as credenciais
         return DriverManager.getConnection(URL, USER, PASSWORD);
     }
     
     /**
      * Cria a tabela 'books' se ela não existir no banco
-     * Inclui campos para controle de quantidade e reservas
+     * Este método é executado automaticamente ao iniciar a aplicação
      */
     public static void createTableIfNotExists() {
         // Comando SQL para criar a tabela books com campos de controle de estoque
@@ -59,6 +70,18 @@ public class DatabaseConnection {
             System.out.println("✅ Tabela 'books' verificada/criada com sucesso!");
         } catch (SQLException e) {
             System.err.println("❌ Erro ao criar tabela: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Testa a conexão com o banco de dados
+     * Útil para verificar se as credenciais estão corretas
+     */
+    public static void testConnection() {
+        try (Connection conn = getConnection()) {
+            System.out.println("✅ Conexão com o banco estabelecida com sucesso!");
+        } catch (SQLException e) {
+            System.err.println("❌ Falha na conexão: " + e.getMessage());
         }
     }
 }
