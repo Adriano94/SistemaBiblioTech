@@ -3,25 +3,46 @@ package User;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.JTextArea;
 
 /**
  * Classe de serviço para operações de reserva e devolução de livros
- * Gerencia a lógica de negócio do sistema de reservas
+ * Agora com suporte a usuários autenticados e histórico personalizado
  */
 public class BibliotecaService {
+    private Usuario usuarioLogado;
+
+    public BibliotecaService(Usuario usuario) {
+        this.usuarioLogado = usuario;
+    }
 
     /**
-     * Consulta todos os livros disponíveis no banco de dados
-     * @return Lista de livros encontrados
-     * @throws SQLException Se ocorrer um erro no banco de dados
+     * Pesquisa livros por título, autor ou ISBN
      */
-    public List<Livro> consultarLivros() throws SQLException {
+    public List<Livro> pesquisarLivros(String tipo, String termo, JTextArea outputArea) {
         List<Livro> livros = new ArrayList<>();
-        String sql = "SELECT id, title, author, isbn, quantidade_total, quantidade_disponivel, reservados, todos_reservados FROM books";
+        String sql = "";
+        
+        switch (tipo.toUpperCase()) {
+            case "TITULO":
+                sql = "SELECT * FROM books WHERE title LIKE ?";
+                break;
+            case "AUTOR":
+                sql = "SELECT * FROM books WHERE author LIKE ?";
+                break;
+            case "ISBN":
+                sql = "SELECT * FROM books WHERE isbn LIKE ?";
+                break;
+            default:
+                outputArea.append("❌ Tipo de pesquisa inválido!\n");
+                return livros;
+        }
 
         try (Connection conn = Database.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, "%" + termo + "%");
+            ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
                 Livro livro = new Livro(
@@ -36,34 +57,27 @@ public class BibliotecaService {
                 );
                 livros.add(livro);
             }
+            
+        } catch (SQLException e) {
+            outputArea.append("❌ Erro na pesquisa: " + e.getMessage() + "\n");
         }
-
-        // Exibe os livros de forma organizada
-        System.out.println("\n=== LIVROS DISPONÍVEIS ===");
-        for (Livro livro : livros) {
-            System.out.println(livro);
-        }
-        System.out.println("Total de livros: " + livros.size());
-
+        
         return livros;
     }
 
     /**
-     * Reserva um livro para um usuário
-     * @param idLivro ID do livro a ser reservado
-     * @param usuario Nome do usuário que está reservando
-     * @throws SQLException Se o livro não estiver disponível ou ocorrer erro no banco
+     * Reserva um livro para o usuário logado
      */
-    public void reservarLivro(int idLivro, String usuario) throws SQLException {
+    public boolean reservarLivro(int livroId, JTextArea outputArea) {
         Connection conn = null;
         try {
             conn = Database.getConnection();
-            conn.setAutoCommit(false); // Inicia transação
+            conn.setAutoCommit(false);
 
-            // Verifica se o livro existe e está disponível
-            String checkSql = "SELECT title, quantidade_disponivel FROM books WHERE id = ? AND quantidade_disponivel > 0 AND todos_reservados = FALSE";
+            // Verificar disponibilidade
+            String checkSql = "SELECT title, quantidade_disponivel FROM books WHERE id = ? AND quantidade_disponivel > 0";
             PreparedStatement checkStmt = conn.prepareStatement(checkSql);
-            checkStmt.setInt(1, idLivro);
+            checkStmt.setInt(1, livroId);
             ResultSet rs = checkStmt.executeQuery();
 
             if (rs.next()) {
@@ -71,54 +85,56 @@ public class BibliotecaService {
                 int disponivel = rs.getInt("quantidade_disponivel");
 
                 if (disponivel <= 0) {
-                    throw new SQLException("❌ Livro '" + titulo + "' não está disponível para reserva");
+                    outputArea.append("❌ Livro '" + titulo + "' não está disponível para reserva\n");
+                    return false;
                 }
 
-                // Atualiza o estoque do livro
+                // Atualizar estoque
                 String updateSql = "UPDATE books SET quantidade_disponivel = quantidade_disponivel - 1, reservados = reservados + 1 WHERE id = ?";
                 PreparedStatement updateStmt = conn.prepareStatement(updateSql);
-                updateStmt.setInt(1, idLivro);
+                updateStmt.setInt(1, livroId);
                 int rows = updateStmt.executeUpdate();
 
                 if (rows > 0) {
-                    // Registra a ação no histórico
-                    registrarHistorico(usuario, "RESERVOU", idLivro, titulo, conn);
-                    conn.commit(); // Confirma a transação
-                    System.out.println("✅ Livro '" + titulo + "' reservado com sucesso para " + usuario);
-                } else {
-                    throw new SQLException("❌ Não foi possível reservar o livro");
+                    // Registrar no histórico
+                    registrarHistorico(conn, livroId, titulo, "RESERVA");
+                    conn.commit();
+                    outputArea.append("✅ Livro '" + titulo + "' reservado com sucesso!\n");
+                    return true;
                 }
             } else {
-                throw new SQLException("❌ Livro não encontrado ou indisponível");
+                outputArea.append("❌ Livro não encontrado ou indisponível\n");
             }
-
+            
         } catch (SQLException e) {
-            if (conn != null) conn.rollback(); // Desfaz a transação em caso de erro
-            throw e;
+            if (conn != null) {
+                try { conn.rollback(); } catch (SQLException ex) {}
+            }
+            outputArea.append("❌ Erro ao reservar livro: " + e.getMessage() + "\n");
         } finally {
             if (conn != null) {
-                conn.setAutoCommit(true);
-                conn.close();
+                try { 
+                    conn.setAutoCommit(true); 
+                    conn.close(); 
+                } catch (SQLException e) {}
             }
         }
+        return false;
     }
 
     /**
-     * Devolve um livro previamente reservado
-     * @param idLivro ID do livro a ser devolvido
-     * @param usuario Nome do usuário que está devolvendo
-     * @throws SQLException Se o livro não tiver reservas ou ocorrer erro no banco
+     * Devolve um livro reservado pelo usuário logado
      */
-    public void devolverLivro(int idLivro, String usuario) throws SQLException {
+    public boolean devolverLivro(int livroId, JTextArea outputArea) {
         Connection conn = null;
         try {
             conn = Database.getConnection();
             conn.setAutoCommit(false);
 
-            // Verifica se o livro existe e tem reservas
-            String checkSql = "SELECT title, reservados FROM books WHERE id = ? AND reservados > 0";
+            // Verificar se o livro existe
+            String checkSql = "SELECT title, reservados FROM books WHERE id = ?";
             PreparedStatement checkStmt = conn.prepareStatement(checkSql);
-            checkStmt.setInt(1, idLivro);
+            checkStmt.setInt(1, livroId);
             ResultSet rs = checkStmt.executeQuery();
 
             if (rs.next()) {
@@ -126,114 +142,130 @@ public class BibliotecaService {
                 int reservados = rs.getInt("reservados");
 
                 if (reservados <= 0) {
-                    throw new SQLException("❌ Este livro não tinha reservas pendentes");
+                    outputArea.append("❌ Este livro não tinha reservas pendentes\n");
+                    return false;
                 }
 
-                // Atualiza o estoque do livro
+                // Atualizar estoque
                 String updateSql = "UPDATE books SET quantidade_disponivel = quantidade_disponivel + 1, reservados = reservados - 1 WHERE id = ?";
                 PreparedStatement updateStmt = conn.prepareStatement(updateSql);
-                updateStmt.setInt(1, idLivro);
+                updateStmt.setInt(1, livroId);
                 int rows = updateStmt.executeUpdate();
 
                 if (rows > 0) {
-                    // Registra a ação no histórico
-                    registrarHistorico(usuario, "DEVOLVEU", idLivro, titulo, conn);
+                    // Registrar no histórico
+                    registrarHistorico(conn, livroId, titulo, "DEVOLUCAO");
                     conn.commit();
-                    System.out.println("✅ Livro '" + titulo + "' devolvido com sucesso por " + usuario);
-                } else {
-                    throw new SQLException("❌ Não foi possível devolver o livro");
+                    outputArea.append("✅ Livro '" + titulo + "' devolvido com sucesso!\n");
+                    return true;
                 }
             } else {
-                throw new SQLException("❌ Livro não encontrado ou não tinha reservas");
+                outputArea.append("❌ Livro não encontrado\n");
             }
-
+            
         } catch (SQLException e) {
-            if (conn != null) conn.rollback();
-            throw e;
+            if (conn != null) {
+                try { conn.rollback(); } catch (SQLException ex) {}
+            }
+            outputArea.append("❌ Erro ao devolver livro: " + e.getMessage() + "\n");
         } finally {
             if (conn != null) {
-                conn.setAutoCommit(true);
-                conn.close();
+                try { 
+                    conn.setAutoCommit(true); 
+                    conn.close(); 
+                } catch (SQLException e) {}
             }
         }
+        return false;
     }
 
     /**
-     * Consulta o histórico de reservas e devoluções
-     * @return Lista de registros do histórico
-     * @throws SQLException Se ocorrer erro no banco de dados
+     * Consulta o histórico do usuário logado
      */
-    public List<String> consultarHistorico() throws SQLException {
+    public List<String> consultarMeuHistorico(JTextArea outputArea) {
         List<String> historico = new ArrayList<>();
-        criarTabelaHistorico(); // Garante que a tabela existe
-
-        String sql = "SELECT usuario, acao, livro_id, livro_titulo, data FROM historico ORDER BY data DESC LIMIT 20";
+        
+        String sql = "SELECT book_titulo, book_isbn, acao, data_acao FROM books_history " +
+                    "WHERE user_id = ? ORDER BY data_acao DESC";
 
         try (Connection conn = Database.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, usuarioLogado.getId());
+            ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
-                String registro = String.format("[%s] %s %s livro ID %d (%s)",
-                    rs.getTimestamp("data"),
-                    rs.getString("usuario"),
+                String registro = String.format("[%s] %s - Livro: %s (ISBN: %s)",
+                    rs.getTimestamp("data_acao").toString(),
                     rs.getString("acao"),
-                    rs.getInt("livro_id"),
-                    rs.getString("livro_titulo")
+                    rs.getString("book_titulo"),
+                    rs.getString("book_isbn")
                 );
                 historico.add(registro);
             }
+            
+        } catch (SQLException e) {
+            outputArea.append("❌ Erro ao consultar histórico: " + e.getMessage() + "\n");
         }
-
-        // Exibe o histórico de forma organizada
-        System.out.println("\n=== HISTÓRICO ===");
-        for (String registro : historico) {
-            System.out.println(registro);
-        }
-        System.out.println("Total de registros: " + historico.size());
-
+        
         return historico;
     }
 
     /**
-     * Registra uma ação no histórico do sistema
-     * @param usuario Nome do usuário que realizou a ação
-     * @param acao Tipo de ação (RESERVOU/DEVOLVEU)
-     * @param livroId ID do livro envolvido
-     * @param livroTitulo Título do livro
-     * @param conn Conexão ativa com o banco
-     * @throws SQLException Se ocorrer erro no banco de dados
+     * Registra uma ação no histórico
      */
-    private void registrarHistorico(String usuario, String acao, int livroId, String livroTitulo, Connection conn) throws SQLException {
-        criarTabelaHistorico(); // Garante que a tabela existe
+    private void registrarHistorico(Connection conn, int livroId, String livroTitulo, String acao) throws SQLException {
+        String sql = "INSERT INTO books_history (user_id, user_nome, user_email, book_id, book_titulo, book_isbn, acao) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)";
         
-        String sql = "INSERT INTO historico (usuario, acao, livro_id, livro_titulo) VALUES (?, ?, ?, ?)";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, usuario);
-            stmt.setString(2, acao);
-            stmt.setInt(3, livroId);
-            stmt.setString(4, livroTitulo);
-            stmt.executeUpdate();
+            // Obter ISBN do livro
+            String isbnSql = "SELECT isbn FROM books WHERE id = ?";
+            try (PreparedStatement isbnStmt = conn.prepareStatement(isbnSql)) {
+                isbnStmt.setInt(1, livroId);
+                ResultSet rs = isbnStmt.executeQuery();
+                String isbn = rs.next() ? rs.getString("isbn") : "N/A";
+                
+                stmt.setInt(1, usuarioLogado.getId());
+                stmt.setString(2, usuarioLogado.getNome());
+                stmt.setString(3, usuarioLogado.getEmail());
+                stmt.setInt(4, livroId);
+                stmt.setString(5, livroTitulo);
+                stmt.setString(6, isbn);
+                stmt.setString(7, acao);
+                stmt.executeUpdate();
+            }
         }
     }
 
     /**
-     * Cria a tabela de histórico se ela não existir
+     * Autentica um usuário pelo email e senha
      */
-    private void criarTabelaHistorico() {
-        String sql = "CREATE TABLE IF NOT EXISTS historico (" +
-                    "id INT AUTO_INCREMENT PRIMARY KEY, " +
-                    "usuario VARCHAR(100) NOT NULL, " +
-                    "acao VARCHAR(20) NOT NULL, " +
-                    "livro_id INT NOT NULL, " +
-                    "livro_titulo VARCHAR(255) NOT NULL, " +
-                    "data TIMESTAMP DEFAULT CURRENT_TIMESTAMP)";
-
+    public static Usuario autenticarUsuario(String email, String senha) {
+        String sql = "SELECT id, nome, cargo, cpf, email, senha FROM users WHERE email = ? AND senha = ?";
+        
         try (Connection conn = Database.getConnection();
-             Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate(sql);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, email);
+            stmt.setString(2, senha); // Em um sistema real, usar hash para senhas!
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return new Usuario(
+                    rs.getInt("id"),
+                    rs.getString("nome"),
+                    rs.getString("cargo"),
+                    rs.getString("cpf"),
+                    rs.getString("email"),
+                    rs.getString("senha")
+                );
+            }
+            
         } catch (SQLException e) {
-            System.err.println("❌ Erro ao criar tabela de histórico: " + e.getMessage());
+            System.err.println("❌ Erro na autenticação: " + e.getMessage());
         }
+        
+        return null;
     }
 }
