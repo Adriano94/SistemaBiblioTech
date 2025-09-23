@@ -131,14 +131,14 @@ public class UserGUI extends JFrame {
     }
 
     private void pesquisarLivros() {
-        String[] opcoes = {"Título", "Autor", "ISBN"};
+        String[] opcoes = {"TITULO", "AUTOR", "ISBN"};
         String tipo = (String) JOptionPane.showInputDialog(this, 
             "Pesquisar por:", "Pesquisa de Livros",
             JOptionPane.QUESTION_MESSAGE, null, opcoes, opcoes[0]);
 
         if (tipo != null) {
             String termo = JOptionPane.showInputDialog(this, "Digite o termo de pesquisa:");
-            if (termo != null && !termo.trim().isEmpty()) {
+            if (termo != null) {
                 outputArea.append("🔍 Pesquisando por " + tipo + ": '" + termo + "'...\n\n");
                 List<Livro> livros = service.pesquisarLivros(tipo, termo, outputArea);
                 
@@ -154,12 +154,17 @@ public class UserGUI extends JFrame {
         }
     }
 
+    /**
+     * listar livros disponíveis
+     */
     private void listarLivrosDisponiveis() {
-        outputArea.append("📚 Listando livros disponíveis...\n\n");
-        List<Livro> livros = service.pesquisarLivros("Título", "", outputArea);
+        outputArea.append("📚 Listando todos os livros disponíveis...\n\n");
+        
+        // Usar o novo método que retorna TODOS os livros
+        List<Livro> todosLivros = service.listarTodosLivros(outputArea);
         
         // Filtrar apenas os disponíveis
-        List<Livro> disponiveis = livros.stream()
+        List<Livro> disponiveis = todosLivros.stream()
             .filter(Livro::isDisponivel)
             .toList();
             
@@ -169,7 +174,10 @@ public class UserGUI extends JFrame {
             for (Livro livro : disponiveis) {
                 outputArea.append(livro.toString() + "\n");
             }
-            outputArea.append("\nTotal disponível: " + disponiveis.size() + " livros\n");
+            outputArea.append("\n📊 Resumo:\n");
+            outputArea.append("• Total de livros no acervo: " + todosLivros.size() + "\n");
+            outputArea.append("• Livros disponíveis: " + disponiveis.size() + "\n");
+            outputArea.append("• Livros indisponíveis: " + (todosLivros.size() - disponiveis.size()) + "\n");
         }
     }
 

@@ -7,7 +7,6 @@ import javax.swing.JTextArea;
 
 /**
  * Classe de serviço para operações de reserva e devolução de livros
- * Agora com suporte a usuários autenticados e histórico personalizado
  */
 public class BibliotecaService {
     private Usuario usuarioLogado;
@@ -18,30 +17,43 @@ public class BibliotecaService {
 
     /**
      * Pesquisa livros por título, autor ou ISBN
+     * CORREÇÃO: Agora trata corretamente pesquisas vazias
      */
     public List<Livro> pesquisarLivros(String tipo, String termo, JTextArea outputArea) {
         List<Livro> livros = new ArrayList<>();
         String sql = "";
+        boolean usarFiltro = !termo.trim().isEmpty();
         
-        switch (tipo.toUpperCase()) {
-            case "TITULO":
-                sql = "SELECT * FROM books WHERE title LIKE ?";
-                break;
-            case "AUTOR":
-                sql = "SELECT * FROM books WHERE author LIKE ?";
-                break;
-            case "ISBN":
-                sql = "SELECT * FROM books WHERE isbn LIKE ?";
-                break;
-            default:
-                outputArea.append("❌ Tipo de pesquisa inválido!\n");
-                return livros;
+        // Construir a query base
+        String baseSql = "SELECT id, title, author, isbn, quantidade_total, quantidade_disponivel, reservados, todos_reservados FROM books";
+        
+        if (usarFiltro) {
+            switch (tipo.toUpperCase()) {
+                case "TITULO":
+                    sql = baseSql + " WHERE title LIKE ?";
+                    break;
+                case "AUTOR":
+                    sql = baseSql + " WHERE author LIKE ?";
+                    break;
+                case "ISBN":
+                    sql = baseSql + " WHERE isbn LIKE ?";
+                    break;
+                default:
+                    outputArea.append("❌ Tipo de pesquisa inválido!\n");
+                    return livros;
+            }
+        } else {
+            // Se não há termo, retorna todos os livros
+            sql = baseSql;
         }
 
         try (Connection conn = Database.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             
-            stmt.setString(1, "%" + termo + "%");
+            if (usarFiltro) {
+                stmt.setString(1, "%" + termo + "%");
+            }
+            
             ResultSet rs = stmt.executeQuery();
 
             while (rs.next()) {
@@ -60,6 +72,39 @@ public class BibliotecaService {
             
         } catch (SQLException e) {
             outputArea.append("❌ Erro na pesquisa: " + e.getMessage() + "\n");
+        }
+        
+        return livros;
+    }
+
+    /**
+     * Método específico para listar TODOS os livros (sem filtro)
+     * CORREÇÃO: Novo método para listagem completa
+     */
+    public List<Livro> listarTodosLivros(JTextArea outputArea) {
+        List<Livro> livros = new ArrayList<>();
+        String sql = "SELECT id, title, author, isbn, quantidade_total, quantidade_disponivel, reservados, todos_reservados FROM books";
+
+        try (Connection conn = Database.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                Livro livro = new Livro(
+                    rs.getInt("id"),
+                    rs.getString("title"),
+                    rs.getString("author"),
+                    rs.getString("isbn"),
+                    rs.getInt("quantidade_total"),
+                    rs.getInt("quantidade_disponivel"),
+                    rs.getInt("reservados"),
+                    rs.getBoolean("todos_reservados")
+                );
+                livros.add(livro);
+            }
+            
+        } catch (SQLException e) {
+            outputArea.append("❌ Erro ao listar livros: " + e.getMessage() + "\n");
         }
         
         return livros;
@@ -248,7 +293,7 @@ public class BibliotecaService {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             
             stmt.setString(1, email);
-            stmt.setString(2, senha); // Em um sistema real, usar hash para senhas!
+            stmt.setString(2, senha);
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
