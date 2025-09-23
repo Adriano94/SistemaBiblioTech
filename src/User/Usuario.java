@@ -1,32 +1,35 @@
 package User;
 
 /**
- * Classe que representa um usuário do sistema de reservas
+ * Classe que representa um usuário do sistema
  */
 public class Usuario {
     private int id;
     private String nome;
+    private String cargo;
+    private String cpf;
+    private String email;
+    private String senha;
 
-    /**
-     * Construtor da classe Usuario
-     * @param id ID do usuário
-     * @param nome Nome do usuário
-     */
-    public Usuario(int id, String nome) {
+    public Usuario(int id, String nome, String cargo, String cpf, String email, String senha) {
         this.id = id;
         this.nome = nome;
+        this.cargo = cargo;
+        this.cpf = cpf;
+        this.email = email;
+        this.senha = senha;
     }
 
-    // Métodos getters
+    // Getters
     public int getId() { return id; }
     public String getNome() { return nome; }
+    public String getCargo() { return cargo; }
+    public String getCpf() { return cpf; }
+    public String getEmail() { return email; }
+    public String getSenha() { return senha; }
 
-    /**
-     * Retorna uma representação em string do usuário
-     * @return String formatada com informações do usuário
-     */
     @Override
     public String toString() {
-        return "Usuario{id=" + id + ", nome='" + nome + "'}";
+        return String.format("Usuário: %s (%s) - %s", nome, email, cargo);
     }
 }
