@@ -1,24 +1,25 @@
+package book.management.system;
+
 /**
- * Classe que representa um livro no sistema
- * Contém informações básicas como título, autor, ISBN, ano e informações de estoque
+ * Classe que representa um livro no sistema de gerenciamento de biblioteca
+ * Contém informações básicas do livro e dados de estoque/reservas
  */
 public class Book {
-    // Atributos da classe
     private String title;
     private String author;
     private String isbn;
-    private String year; // Formato: yyyy-mm-dd
+    private String year;
     private int quantidadeTotal;
     private int quantidadeDisponivel;
     private int reservados;
     private boolean todosReservados;
 
     /**
-     * Construtor da classe Book
+     * Construtor completo para criar um livro com todas as informações
      * @param title Título do livro
      * @param author Autor do livro
      * @param isbn ISBN do livro
-     * @param year Ano de publicação (formato yyyy-mm-dd)
+     * @param year Ano de publicação
      * @param quantidadeTotal Quantidade total de exemplares
      * @param quantidadeDisponivel Quantidade disponível para empréstimo
      * @param reservados Quantidade de exemplares reservados
@@ -38,7 +39,11 @@ public class Book {
     }
 
     /**
-     * Construtor simplificado para compatibilidade com versões anteriores
+     * Construtor simplificado para criar um livro com valores padrão
+     * @param title Título do livro
+     * @param author Autor do livro
+     * @param isbn ISBN do livro
+     * @param year Ano de publicação
      */
     public Book(String title, String author, String isbn, String year) {
         this(title, author, isbn, year, 1, 1, 0, false);
@@ -55,10 +60,10 @@ public class Book {
     public boolean isTodosReservados() { return todosReservados; }
 
     /**
-     * Exibe as informações do livro no console
+     * Exibe as informações do livro no console (para debug)
      */
     public void displayInfo() {
-        System.out.println("📖 Livro:");
+        System.out.println("📖 Informações do Livro:");
         System.out.println("Título: " + title);
         System.out.println("Autor: " + author);
         System.out.println("ISBN: " + isbn);
@@ -75,15 +80,9 @@ public class Book {
      */
     @Override
     public String toString() {
-        return "Livro{" +
-                "Título='" + title + '\'' +
-                ", Autor='" + author + '\'' +
-                ", ISBN='" + isbn + '\'' +
-                ", Ano='" + year + '\'' +
-                ", QuantidadeTotal=" + quantidadeTotal +
-                ", QuantidadeDisponivel=" + quantidadeDisponivel +
-                ", Reservados=" + reservados +
-                ", TodosReservados=" + todosReservados +
-                '}';
+        return "Book{title='" + title + "', author='" + author + "', isbn='" + isbn + 
+               "', year='" + year + "', total=" + quantidadeTotal + 
+               ", disponivel=" + quantidadeDisponivel + ", reservados=" + reservados + 
+               ", todosReservados=" + todosReservados + "}";
     }
 }
