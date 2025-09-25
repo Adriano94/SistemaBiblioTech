@@ -15,19 +15,25 @@ Gerenciamento de Livros (book-management-system/) → Cadastro, consulta, atuali
 
 📂 Estrutura do Projeto
 Sistema BiblioTech/
+
 │── lib/
+
 │   └── mysql-connector-j-9.4.0.jar   # Driver JDBC do MySQL
+
 │── src/
+
 │   │── bin/                          # Arquivos compilados
+
 │   │── ManagerUser/                  # Sistema de Gerenciamento de Usuários - GUI
-│   │   ├── Usuario.java
-│   │   ├── Database.java
-│   │   ├── UserManagerService.java
-│   │   ├── UserManagerGUI.java
-│   │   └── App.java
-│   │── User/                         # Sistema de Reservas - GUI
+
 │   │   ├── ...
+
+│   │── User/                         # Sistema de Reservas - GUI
+
+│   │   ├── ...
+
 │   │── book-management-system/       # Sistema de Gerenciamento de Livros - GUI
+
 │   │   ├── ...
 
 ⚙️ Tecnologias Utilizadas
